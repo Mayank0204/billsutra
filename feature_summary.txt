@@ -1,0 +1,274 @@
+================================================================================
+                       BILLSUTRA — COMPLETE FEATURE SUMMARY
+================================================================================
+Generated: 2026-03-10
+
+BillSutra is a full-stack business management and billing platform for small and
+medium businesses. It covers end-to-end workflows: invoicing, purchases, sales,
+inventory, payments, analytics, and reporting — all in one place.
+
+--------------------------------------------------------------------------------
+1. AUTHENTICATION & USER MANAGEMENT
+--------------------------------------------------------------------------------
+- Email/Password Registration with bcrypt hashing (cost factor 12)
+- OAuth Login (Google/Provider) via NextAuth on the front-end + JWT token exchange
+  with the backend
+- JWT Tokens with 365-day expiry for API authentication
+- Forgot Password: generates a crypto random token (valid 30 minutes), stored in DB
+- Reset Password: validates token, updates hashed password, marks token as used
+- Profile Update: change name, email
+- Password Update: update password from profile settings
+- Auth-protected routes: Bearer token middleware on all private API routes
+- Front-end route protection: NextAuth JWT middleware blocks unauthenticated
+  access to /dashboard/** routes and redirects to sign-in with callback URL
+
+--------------------------------------------------------------------------------
+2. BUSINESS PROFILE
+--------------------------------------------------------------------------------
+- Create/Update business profile (upsert): business name, address, phone, email,
+  website, logo URL, tax ID (GST), currency (default: INR)
+- Toggle: show/hide logo on invoice, show/hide tax number, show/hide payment QR
+- Business profile information is embedded in generated invoice PDFs
+
+--------------------------------------------------------------------------------
+3. CUSTOMER MANAGEMENT
+--------------------------------------------------------------------------------
+- Full CRUD for customers (create, read, update, delete)
+- Customer fields: name, email, phone, address
+- Customers linked to invoices, sales, and recurring invoice templates
+- Top customer analytics: revenue contribution and number of orders
+
+--------------------------------------------------------------------------------
+4. SUPPLIER MANAGEMENT
+--------------------------------------------------------------------------------
+- Full CRUD for suppliers
+- Supplier fields: name, email, phone, address
+- Suppliers linked to purchase orders
+- Dashboard supplier analytics: pending payables per supplier
+
+--------------------------------------------------------------------------------
+5. PRODUCT & CATEGORY MANAGEMENT
+--------------------------------------------------------------------------------
+- Full CRUD for products
+- Product fields: name, SKU (unique per user), barcode (globally unique), selling
+  price, cost price, GST rate (default 18%), stock on hand, reorder level,
+  category
+- Full CRUD for product categories
+- Category uniqueness enforced per user (user_id + name)
+- Products linked to: purchase items, sale items, invoice items, stock movements,
+  inventory records
+
+--------------------------------------------------------------------------------
+6. WAREHOUSE & INVENTORY MANAGEMENT
+--------------------------------------------------------------------------------
+- Full CRUD for warehouses (name, location)
+- Inventory records: tracks quantity of each product in each warehouse
+- Inventory query: filter by warehouse
+- Inventory adjustment: manually increase/decrease stock with a reason
+- Stock movements tracked as audit trail: PURCHASE, SALE, ADJUSTMENT, RETURN, DAMAGE
+- Low-stock and out-of-stock alerts based on reorder level
+
+--------------------------------------------------------------------------------
+7. PURCHASE MANAGEMENT
+--------------------------------------------------------------------------------
+- Create/Update/Read purchases with multiple line items
+- Purchase fields: supplier, warehouse, purchase date, subtotal, tax, total,
+  notes, line items (product, name, quantity, unit cost, tax rate, line total)
+- Payment tracking on purchases: total amount, paid amount, pending amount,
+  payment status (PAID / PARTIALLY_PAID / UNPAID), payment date, payment method
+- Payment methods: CASH, CARD, BANK_TRANSFER, UPI, CHEQUE, OTHER
+- Stock automatically updated when a purchase is recorded
+- Dashboard shows pending supplier payables
+
+--------------------------------------------------------------------------------
+8. SALES MANAGEMENT
+--------------------------------------------------------------------------------
+- Full CRUD for sales
+- Sale fields: customer (optional - walk-in supported), sale date, items
+  (product, name, qty, unit price, tax rate, line total), subtotal, tax, total,
+  notes
+- Sale status: DRAFT, COMPLETED, VOID
+- Payment tracking on sales: similar to purchases (total, paid, pending, status)
+- Invoice-to-sale sync: creating an invoice with sync_sales=true auto-creates a
+  corresponding sale record and decrements inventory
+
+--------------------------------------------------------------------------------
+9. INVOICING SYSTEM
+--------------------------------------------------------------------------------
+- Create invoices with: customer, issue date, due date, discount, notes, items
+- Invoice statuses: DRAFT, SENT, PARTIALLY_PAID, PAID, OVERDUE, VOID
+- Auto-generated invoice numbers (sequential, per user)
+- Overdue sync: at every invoice list/get request, invoices past due date
+  (and not yet PAID) are automatically transitioned to OVERDUE status
+- PDF generation: server-side PDF via Puppeteer (headless Chromium), A4 format,
+  includes company details, customer details, itemized table, totals
+- Mark as Sent: transitions invoice from DRAFT to SENT status
+- Duplicate invoice: creates a new DRAFT invoice as a copy with a new number
+- Delete invoice
+- Invoice payments tracking: multiple partial payments per invoice
+- Public invoice view: unauthenticated route (/api/public/invoice/:id) to allow
+  sharing invoice links with customers
+- Email notification: send invoice notification email to customer (via Nodemailer)
+- Inventory sync on invoice creation: validates stock, decrements warehouse
+  inventory and global stock_on_hand
+
+--------------------------------------------------------------------------------
+10. RECURRING INVOICES
+--------------------------------------------------------------------------------
+- Templates for recurring invoices: customer, title, items, discount, notes,
+  due_in_days, frequency, interval_count
+- Frequencies: DAILY, WEEKLY, MONTHLY, YEARLY with a configurable interval count
+- Cron job runs at server midnight: automatically creates invoice drafts for all
+  active templates whose next_run_date has passed
+- After processing: last_run_date updated, next_run_date advanced by frequency
+
+--------------------------------------------------------------------------------
+11. PAYMENT MANAGEMENT
+--------------------------------------------------------------------------------
+- Record payments against invoices
+- Payment fields: invoice, amount, method, provider, transaction_id, reference,
+  paid_at date
+- List all payments or filter by invoice
+- Invoice status auto-updated after payment (PARTIALLY_PAID / PAID)
+
+--------------------------------------------------------------------------------
+12. INVOICE TEMPLATES & CUSTOMIZATION
+--------------------------------------------------------------------------------
+- System-level templates (admin controlled): layout_config, sections
+- User template settings: choose a base template, enable/disable sections,
+  customize theme color, section order, design config (JSON)
+- User saved templates: save named custom layouts for reuse across invoices
+
+--------------------------------------------------------------------------------
+13. BULK DATA IMPORT
+--------------------------------------------------------------------------------
+- Import module accepts CSV and XLSX file uploads (via Multer)
+- Supported import types: customers, suppliers, products, categories, warehouses
+- Validates each row, maps columns, inserts records in bulk
+- Returns import statistics: successful, failed, error details per row
+
+--------------------------------------------------------------------------------
+14. ANALYTICS
+--------------------------------------------------------------------------------
+- Overview analytics endpoint: aggregated business metrics
+- Top selling products by quantity (last 30 days)
+- Category-wise revenue breakdown
+- Profit trend (monthly, rolling 6 months): revenue - purchases - expenses
+
+--------------------------------------------------------------------------------
+15. DASHBOARD
+--------------------------------------------------------------------------------
+The dashboard engine provides several specialized data endpoints:
+
+  a) Overview
+     - Total revenue, total purchases, expenses, receivables, payables
+     - Profit metrics: today, weekly, monthly with % change vs prior period
+     - Inventory value (stock_on_hand × cost/price)
+     - Invoice stats: total, paid, pending, overdue counts
+     - Alerts: low stock items, overdue invoices, supplier payables
+     - Notifications panel (formatted alert messages)
+     - Recent activity feed (last 6 sales/purchases events)
+     - Pending payment rows (top 5) with amount breakdown
+
+  b) Sales Analytics
+     - Daily sales totals: last 7 days + last 30 days charts
+     - Monthly comparison: sales vs purchases, last 6 months
+     - Category revenue breakdown (top 5)
+
+  c) Inventory Analytics
+     - Total products, low stock count, out-of-stock count
+     - Inventory value
+     - Top selling product (last 30 days by units)
+     - Low stock item list with stock vs reorder level
+
+  d) Transactions
+     - Last 10 sales with payment status
+
+  e) Customer Analytics
+     - Total registered customers
+     - Pending payment amount
+     - Customer visit breakdown: daily/weekly/monthly (registered vs walk-in)
+     - Top 5 customers by revenue and order count
+
+  f) Supplier Analytics
+     - Pending payables per supplier
+
+  g) Cash Flow
+     - Inflow/outflow analysis (modes: sales, payments, or hybrid)
+     - Configurable cash inflow mode
+
+  h) Sales Forecast
+     - Predictive forecast based on historical patterns and day-of-week weighting
+
+--------------------------------------------------------------------------------
+16. REPORTS
+--------------------------------------------------------------------------------
+- Summary report: aggregated totals for revenue, purchases, expenses, profit
+  over a specified date range or overall
+
+--------------------------------------------------------------------------------
+17. FRONT-END PAGES (Next.js)
+--------------------------------------------------------------------------------
+- Landing page: hero, features, benefits, how-it-works, pricing, CTA sections
+- Auth pages: sign-in (credentials + OAuth), register, forgot password
+- Dashboard: multi-tab analytics overview
+- Invoices: list, create, view, edit, duplicate, PDF download, send notification
+- Sales: list, create, view, edit
+- Purchases: list, create, view, edit
+- Customers: list, create, edit
+- Suppliers: list, create, edit
+- Products: list, create, edit (with category, SKU, GST)
+- Categories: managed within products or settings
+- Inventory: warehouse-level stock view, adjustment
+- Warehouses: list, create, edit
+- Business Profile: setup/update form
+- Profile: user info + password change
+- Settings: application settings
+- Templates: invoice template selection and customization
+- PDF Viewer: browser-side rendered invoice PDF preview
+- 404 Not Found page
+
+--------------------------------------------------------------------------------
+18. TECHNOLOGY STACK
+--------------------------------------------------------------------------------
+
+  Front-End:
+    - Next.js 16 (App Router), React 19, TypeScript
+    - TailwindCSS 4, Radix UI components
+    - NextAuth v4 (OAuth + credentials sessions)
+    - TanStack Query (React Query) for server state
+    - TanStack Table for data tables
+    - Recharts for charts and visualizations
+    - Axios for HTTP calls
+    - Zod for schema validation
+    - Lucide React icons
+    - next-themes (dark/light mode)
+    - Sonner (toast notifications)
+    - html2canvas, Playwright (PDF/screenshot utilities)
+
+  Back-End (Server):
+    - Node.js with Express 5, TypeScript (ESM)
+    - Prisma ORM 6 with PostgreSQL
+    - JWT (jsonwebtoken) for API authentication
+    - bcryptjs for password hashing
+    - Puppeteer for server-side PDF generation
+    - Nodemailer for email notifications
+    - node-cron for recurring invoice automation
+    - Multer for file uploads (bulk import)
+    - csv-parser + xlsx for CSV/Excel import
+    - express-rate-limit for auth rate limiting
+    - Morgan for HTTP request logging
+    - Zod for request validation
+    - CORS support
+
+  Database Schema:
+    - PostgreSQL via Prisma
+    - 15 models: User, BusinessProfile, Template, TemplateSection, UserTemplate,
+      UserSavedTemplate, Customer, Supplier, Category, Product, Warehouse,
+      Inventory, Purchase, PurchaseItem, Sale, SaleItem, Invoice,
+      RecurringInvoiceTemplate, InvoiceItem, Payment, StockMovement,
+      PasswordResetToken
+
+================================================================================
+                              END OF FEATURE SUMMARY
+================================================================================
