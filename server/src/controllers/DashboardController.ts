@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { sendResponse } from "../utils/sendResponse.js";
 import prisma from "../config/db.config.js";
-import { InvoiceStatus } from "@prisma/client";
 import {
   buildMonthlyProfitSeries,
   buildNotifications,
@@ -84,8 +83,6 @@ class DashboardController {
       purchaseTotals,
       pendingSalesTotals,
       products,
-      invoiceCounts,
-      overdueInvoices,
       recentSales,
       recentPurchases,
       dailySales,
@@ -111,11 +108,17 @@ class DashboardController {
       totalExpenses,
     ] = await Promise.all([
       prisma.sale.aggregate({
-        where: { user_id: userId },
+        where: {
+          user_id: userId,
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         _sum: { total: true },
       }),
       prisma.purchase.aggregate({
-        where: { user_id: userId },
+        where: {
+          user_id: userId,
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         _sum: { total: true, pendingAmount: true },
       }),
       prisma.sale.aggregate({
@@ -135,17 +138,6 @@ class DashboardController {
           cost: true,
         },
       }),
-      prisma.invoice.groupBy({
-        by: ["status"],
-        where: { user_id: userId },
-        _count: { id: true },
-      }),
-      prisma.invoice.findMany({
-        where: { user_id: userId, status: InvoiceStatus.OVERDUE },
-        select: { invoice_number: true },
-        take: 5,
-        orderBy: { date: "desc" },
-      }),
       prisma.sale.findMany({
         where: { user_id: userId },
         select: { id: true, sale_date: true },
@@ -162,6 +154,7 @@ class DashboardController {
         where: {
           user_id: userId,
           sale_date: { gte: todayStart, lt: tomorrowStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
         },
         _sum: { total: true },
       }),
@@ -169,6 +162,7 @@ class DashboardController {
         where: {
           user_id: userId,
           purchase_date: { gte: todayStart, lt: tomorrowStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
         },
         _sum: { total: true },
       }),
@@ -176,6 +170,7 @@ class DashboardController {
         where: {
           user_id: userId,
           sale_date: { gte: yesterdayStart, lt: todayStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
         },
         _sum: { total: true },
       }),
@@ -183,21 +178,31 @@ class DashboardController {
         where: {
           user_id: userId,
           purchase_date: { gte: yesterdayStart, lt: todayStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
         },
         _sum: { total: true },
       }),
       prisma.sale.aggregate({
-        where: { user_id: userId, sale_date: { gte: weekStart } },
+        where: {
+          user_id: userId,
+          sale_date: { gte: weekStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         _sum: { total: true },
       }),
       prisma.purchase.aggregate({
-        where: { user_id: userId, purchase_date: { gte: weekStart } },
+        where: {
+          user_id: userId,
+          purchase_date: { gte: weekStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         _sum: { total: true },
       }),
       prisma.sale.aggregate({
         where: {
           user_id: userId,
           sale_date: { gte: previousWeekStart, lt: weekStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
         },
         _sum: { total: true },
       }),
@@ -205,21 +210,31 @@ class DashboardController {
         where: {
           user_id: userId,
           purchase_date: { gte: previousWeekStart, lt: weekStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
         },
         _sum: { total: true },
       }),
       prisma.sale.aggregate({
-        where: { user_id: userId, sale_date: { gte: monthStart } },
+        where: {
+          user_id: userId,
+          sale_date: { gte: monthStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         _sum: { total: true },
       }),
       prisma.purchase.aggregate({
-        where: { user_id: userId, purchase_date: { gte: monthStart } },
+        where: {
+          user_id: userId,
+          purchase_date: { gte: monthStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         _sum: { total: true },
       }),
       prisma.sale.aggregate({
         where: {
           user_id: userId,
           sale_date: { gte: previousMonthStart, lt: monthStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
         },
         _sum: { total: true },
       }),
@@ -227,6 +242,7 @@ class DashboardController {
         where: {
           user_id: userId,
           purchase_date: { gte: previousMonthStart, lt: monthStart },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
         },
         _sum: { total: true },
       }),
@@ -335,24 +351,6 @@ class DashboardController {
       (product) => product.stock_on_hand < product.reorder_level,
     );
 
-    const invoiceStats = invoiceCounts.reduce(
-      (acc, item) => {
-        acc.total += item._count.id;
-        if (item.status === InvoiceStatus.PAID) {
-          acc.paid += item._count.id;
-        } else if (
-          item.status === InvoiceStatus.SENT ||
-          item.status === InvoiceStatus.PARTIALLY_PAID
-        ) {
-          acc.pending += item._count.id;
-        } else if (item.status === InvoiceStatus.OVERDUE) {
-          acc.overdue += item._count.id;
-        }
-        return acc;
-      },
-      { total: 0, paid: 0, pending: 0, overdue: 0 },
-    );
-
     const activity = [
       ...recentSales.map((sale) => ({
         time: sale.sale_date,
@@ -413,12 +411,10 @@ class DashboardController {
           paymentStatus: item.paymentStatus,
           date: item.date.toISOString(),
         })),
-        invoiceStats,
         alerts: {
           lowStock: lowStockProducts
             .slice(0, 6)
             .map((item) => `${item.name} (${item.stock_on_hand})`),
-          overdueInvoices: overdueInvoices.map((item) => item.invoice_number),
           supplierPayables: pendingPurchaseRows
             .slice(0, 5)
             .map(
@@ -430,7 +426,6 @@ class DashboardController {
           lowStock: lowStockProducts
             .slice(0, 6)
             .map((item) => `${item.name} stock is ${item.stock_on_hand}`),
-          overdueInvoices: overdueInvoices.map((item) => item.invoice_number),
           pendingSales: pendingPaymentRows.map((row) => ({
             customer: row.customer,
             pendingAmount: row.pendingAmount,
@@ -457,18 +452,20 @@ class DashboardController {
     const start6Months = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
     );
+    // Extend end date to ensure today's complete data is included
+    const endDate = addDays(startOfDayUtc(now), 1);
 
     const [sales, purchases, saleItems] = await Promise.all([
       prisma.sale.findMany({
-        where: { user_id: userId, sale_date: { gte: start30 } },
+        where: { user_id: userId, sale_date: { gte: start30, lt: endDate } },
         select: { sale_date: true, total: true },
       }),
       prisma.purchase.findMany({
-        where: { user_id: userId, purchase_date: { gte: start6Months } },
+        where: { user_id: userId, purchase_date: { gte: start6Months, lt: endDate } },
         select: { purchase_date: true, total: true },
       }),
       prisma.saleItem.findMany({
-        where: { sale: { user_id: userId, sale_date: { gte: start30 } } },
+        where: { sale: { user_id: userId, sale_date: { gte: start30, lt: endDate } } },
         select: {
           line_total: true,
           product: { select: { category: { select: { name: true } } } },
@@ -667,6 +664,7 @@ class DashboardController {
     const monthStart = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
     );
+    const sixtyDaysAgo = addDays(now, -60);
 
     const [
       totalRegisteredCustomers,
@@ -678,6 +676,7 @@ class DashboardController {
       weeklyWalkIns,
       monthlyRegisteredGroups,
       monthlyWalkIns,
+      allCustomersData,
     ] = await Promise.all([
       prisma.customer.count({ where: { user_id: userId } }),
       prisma.sale.aggregate({
@@ -743,6 +742,19 @@ class DashboardController {
           sale_date: { gte: monthStart },
         },
       }),
+      // CLV data: all customers with their sales metrics
+      prisma.sale.groupBy({
+        by: ["customer_id"],
+        where: {
+          user_id: userId,
+          customer_id: { not: null },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID"] },
+        },
+        _sum: { total: true },
+        _count: { _all: true },
+        _min: { sale_date: true },
+        _max: { sale_date: true },
+      }),
     ]);
 
     const customers = await prisma.customer.findMany({
@@ -771,6 +783,105 @@ class DashboardController {
         numberOfOrders: item._count._all,
       }));
 
+    // Calculate CLV metrics for each customer
+    const clvMetrics = allCustomersData
+      .map((record) => {
+        const customerId = record.customer_id;
+        const totalOrders = record._count._all;
+        const totalRevenue = toNumber(record._sum.total);
+        const firstPurchase = record._min.sale_date
+          ? new Date(record._min.sale_date)
+          : new Date();
+        const lastPurchase = record._max.sale_date
+          ? new Date(record._max.sale_date)
+          : new Date();
+
+        // Calculate customer lifetime days
+        const lifetimeDays = Math.max(
+          1,
+          Math.floor(
+            (lastPurchase.getTime() - firstPurchase.getTime()) /
+            (1000 * 60 * 60 * 24),
+          ),
+        );
+
+        // Calculate metrics
+        const avgOrderValue =
+          totalOrders > 0 ? totalRevenue / totalOrders : 0;
+        const purchaseFrequency = totalOrders / Math.max(1, lifetimeDays);
+        const predicatedFutureValue = Math.round(
+          avgOrderValue * purchaseFrequency * 180,
+        );
+
+        return {
+          customerId,
+          totalOrders,
+          totalRevenue,
+          avgOrderValue: Math.round(avgOrderValue),
+          purchaseFrequency: Math.round(purchaseFrequency * 1000) / 1000,
+          lastPurchaseDate: toDateKey(lastPurchase),
+          lifetimeDays,
+          lifeTimeValue: totalRevenue,
+          predicatedFutureValue,
+        };
+      })
+      .sort((a, b) => b.lifeTimeValue - a.lifeTimeValue);
+
+    // Determine segments using proper index-based approach
+    // HIGH_VALUE: top 35% by lifetime value to capture similar-value customers
+    const clvWithSegments = clvMetrics.map((metric, index) => {
+      let segment: "HIGH_VALUE" | "LOW_VALUE" = "LOW_VALUE";
+
+      const highValueCount = Math.max(1, Math.ceil(clvMetrics.length * 0.35));
+      if (index < highValueCount) {
+        segment = "HIGH_VALUE";
+      }
+
+      return { ...metric, segment };
+    });
+
+    // Get customer names for CLV data
+    const clvCustomerIds = clvWithSegments.map((m) => m.customerId).filter(
+      (id): id is number => id !== null,
+    );
+    const clvCustomers = await prisma.customer.findMany({
+      where: { id: { in: clvCustomerIds } },
+      select: { id: true, name: true },
+    });
+    const clvCustomerMap = new Map(
+      clvCustomers.map((c) => [c.id, c.name]),
+    );
+
+    const highValueCustomers = clvWithSegments
+      .filter(
+        (m): m is typeof m & { customerId: number } => m.customerId !== null,
+      )
+      .filter((m) => m.segment === "HIGH_VALUE")
+      .slice(0, 5)
+      .map((m) => ({
+        customerId: m.customerId,
+        customerName: clvCustomerMap.get(m.customerId) ?? "Customer",
+        lifetimeValue: m.lifeTimeValue,
+        predicatedFutureValue: m.predicatedFutureValue,
+        totalOrders: m.totalOrders,
+        segment: m.segment,
+      }));
+
+    const lowValueCustomers = clvWithSegments
+      .filter(
+        (m): m is typeof m & { customerId: number } => m.customerId !== null,
+      )
+      .filter((m) => m.segment === "LOW_VALUE")
+      .slice(0, 5)
+      .map((m) => ({
+        customerId: m.customerId,
+        customerName: clvCustomerMap.get(m.customerId) ?? "Customer",
+        lifetimeValue: m.lifeTimeValue,
+        predicatedFutureValue: m.predicatedFutureValue,
+        totalOrders: m.totalOrders,
+        segment: m.segment,
+      }));
+
     const toVisitBreakdown = (
       registeredCustomers: number,
       walkInCustomers: number,
@@ -796,6 +907,12 @@ class DashboardController {
           ),
         },
         topCustomers,
+        clvAnalytics: {
+          highValueCustomers,
+          lowValueCustomers,
+          highValueCount: highValueCustomers.length,
+          lowValueCount: lowValueCustomers.length,
+        },
       },
     });
   }
@@ -808,8 +925,15 @@ class DashboardController {
 
     const now = new Date();
     const start30 = startOfDayUtc(addDays(now, -29));
+    const sixtyDaysAgo = addDays(now, -60);
 
-    const [total, recentPurchases, purchaseTotals] = await Promise.all([
+    const [
+      total,
+      recentPurchases,
+      purchaseTotals,
+      topSupplierPurchases,
+      allSuppliersData,
+    ] = await Promise.all([
       prisma.supplier.count({ where: { user_id: userId } }),
       prisma.purchase.count({
         where: { user_id: userId, purchase_date: { gte: start30 } },
@@ -818,13 +942,163 @@ class DashboardController {
         where: { user_id: userId, purchase_date: { gte: start30 } },
         _sum: { pendingAmount: true },
       }),
+      // Top 5 suppliers by total purchase amount
+      prisma.purchase.groupBy({
+        by: ["supplier_id"],
+        where: { user_id: userId, supplier_id: { not: null } },
+        _sum: { total: true },
+        _count: { _all: true },
+        orderBy: { _sum: { total: "desc" } },
+        take: 5,
+      }),
+      // All suppliers for LTV-like analysis
+      prisma.purchase.groupBy({
+        by: ["supplier_id"],
+        where: {
+          user_id: userId,
+          supplier_id: { not: null },
+        },
+        _sum: { total: true },
+        _count: { _all: true },
+        _min: { purchase_date: true },
+        _max: { purchase_date: true },
+      }),
     ]);
+
+    // Get supplier names for top suppliers
+    const topSupplierIds = topSupplierPurchases
+      .map((item) => item.supplier_id)
+      .filter((id): id is number => id !== null);
+    const topSuppliers = await prisma.supplier.findMany({
+      where: { id: { in: topSupplierIds } },
+      select: { id: true, name: true },
+    });
+    const supplierMap = new Map(
+      topSuppliers.map((supplier) => [supplier.id, supplier.name]),
+    );
+
+    const topSuppliersList = topSupplierPurchases
+      .filter(
+        (item): item is typeof item & { supplier_id: number } =>
+          item.supplier_id !== null,
+      )
+      .map((item) => ({
+        name: supplierMap.get(item.supplier_id) ?? "Supplier",
+        totalPurchaseAmount: toNumber(item._sum.total),
+        numberOfOrders: item._count._all,
+      }));
+
+    // Calculate Supplier Lifetime Value (LTV) metrics for each supplier
+    const supplierLtvMetrics = allSuppliersData
+      .map((record) => {
+        const supplierId = record.supplier_id;
+        const totalOrders = record._count._all;
+        const totalPurchaseValue = toNumber(record._sum.total);
+        const firstPurchase = record._min.purchase_date
+          ? new Date(record._min.purchase_date)
+          : new Date();
+        const lastPurchase = record._max.purchase_date
+          ? new Date(record._max.purchase_date)
+          : new Date();
+
+        // Calculate supplier lifetime days
+        const lifetimeDays = Math.max(
+          1,
+          Math.floor(
+            (lastPurchase.getTime() - firstPurchase.getTime()) /
+            (1000 * 60 * 60 * 24),
+          ),
+        );
+
+        // Calculate metrics
+        const avgOrderValue =
+          totalOrders > 0 ? totalPurchaseValue / totalOrders : 0;
+        const purchaseFrequency = totalOrders / Math.max(1, lifetimeDays);
+        const predictedFutureValue = Math.round(
+          avgOrderValue * purchaseFrequency * 180,
+        );
+
+        return {
+          supplierId,
+          totalOrders,
+          totalPurchaseValue,
+          avgOrderValue: Math.round(avgOrderValue),
+          purchaseFrequency: Math.round(purchaseFrequency * 1000) / 1000,
+          lastPurchaseDate: toDateKey(lastPurchase),
+          lifetimeDays,
+          supplierLifetimeValue: totalPurchaseValue,
+          predictedFutureValue,
+        };
+      })
+      .sort((a, b) => b.supplierLifetimeValue - a.supplierLifetimeValue);
+
+    // Determine supplier segments
+    // HIGH_VALUE: top 35% by supplier lifetime value to capture similar-value suppliers
+    const supplierWithSegments = supplierLtvMetrics.map((metric, index) => {
+      let segment: "HIGH_VALUE" | "LOW_VALUE" = "LOW_VALUE";
+
+      const highValueCount = Math.max(1, Math.ceil(supplierLtvMetrics.length * 0.35));
+      if (index < highValueCount) {
+        segment = "HIGH_VALUE";
+      }
+
+      return { ...metric, segment };
+    });
+
+    // Get supplier names for LTV data
+    const supplierLtvIds = supplierWithSegments
+      .map((m) => m.supplierId)
+      .filter((id): id is number => id !== null);
+    const supplierLtvNames = await prisma.supplier.findMany({
+      where: { id: { in: supplierLtvIds } },
+      select: { id: true, name: true },
+    });
+    const supplierLtvMap = new Map(
+      supplierLtvNames.map((s) => [s.id, s.name]),
+    );
+
+    const highValueSuppliers = supplierWithSegments
+      .filter(
+        (m): m is typeof m & { supplierId: number } => m.supplierId !== null,
+      )
+      .filter((m) => m.segment === "HIGH_VALUE")
+      .slice(0, 5)
+      .map((m) => ({
+        supplierId: m.supplierId,
+        supplierName: supplierLtvMap.get(m.supplierId) ?? "Supplier",
+        lifetimeValue: m.supplierLifetimeValue,
+        predictedFutureValue: m.predictedFutureValue,
+        totalOrders: m.totalOrders,
+        segment: m.segment,
+      }));
+
+    const lowValueSuppliers = supplierWithSegments
+      .filter(
+        (m): m is typeof m & { supplierId: number } => m.supplierId !== null,
+      )
+      .filter((m) => m.segment === "LOW_VALUE")
+      .slice(0, 5)
+      .map((m) => ({
+        supplierId: m.supplierId,
+        supplierName: supplierLtvMap.get(m.supplierId) ?? "Supplier",
+        lifetimeValue: m.supplierLifetimeValue,
+        predictedFutureValue: m.predictedFutureValue,
+        totalOrders: m.totalOrders,
+        segment: m.segment,
+      }));
 
     return sendResponse(res, 200, {
       data: {
         total,
         recentPurchases,
         outstandingPayables: toNumber(purchaseTotals._sum.pendingAmount),
+        topSuppliers: topSuppliersList,
+        supplierAnalytics: {
+          highValueCount: highValueSuppliers.length,
+          lowValueCount: lowValueSuppliers.length,
+          highValueSuppliers,
+          lowValueSuppliers,
+        },
       },
     });
   }
@@ -847,6 +1121,7 @@ class DashboardController {
           where: {
             user_id: userId,
             paidAmount: { gt: 0 },
+            paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
             OR: [
               { paymentDate: { gte: start30 } },
               { paymentDate: null, sale_date: { gte: start30 } },
@@ -859,7 +1134,11 @@ class DashboardController {
           select: { paid_at: true, amount: true },
         }),
         prisma.purchase.findMany({
-          where: { user_id: userId, purchase_date: { gte: start30 } },
+          where: {
+            user_id: userId,
+            purchase_date: { gte: start30 },
+            paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+          },
           select: { purchase_date: true, paymentDate: true, paidAmount: true },
         }),
         getDailyExpenses({ userId, from: start30 }),
@@ -941,19 +1220,35 @@ class DashboardController {
       expenseMonthly,
     ] = await Promise.all([
       prisma.sale.findMany({
-        where: { user_id: userId, sale_date: { gte: start30 } },
+        where: {
+          user_id: userId,
+          sale_date: { gte: start30 },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         select: { sale_date: true, total: true },
       }),
       prisma.purchase.findMany({
-        where: { user_id: userId, purchase_date: { gte: start30 } },
+        where: {
+          user_id: userId,
+          purchase_date: { gte: start30 },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         select: { purchase_date: true, total: true },
       }),
       prisma.sale.findMany({
-        where: { user_id: userId, sale_date: { gte: start6Months } },
+        where: {
+          user_id: userId,
+          sale_date: { gte: start6Months },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         select: { sale_date: true, total: true },
       }),
       prisma.purchase.findMany({
-        where: { user_id: userId, purchase_date: { gte: start6Months } },
+        where: {
+          user_id: userId,
+          purchase_date: { gte: start6Months },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
+        },
         select: { purchase_date: true, total: true },
       }),
       getMonthlyExpenses({ userId, from: start6Months }),

@@ -57,6 +57,8 @@ import {
 } from "../validations/apiValidations.js";
 import invoiceRoutes from "../modules/invoice/invoice.routes.js";
 import importRoutes from "../modules/import/import.routes.js";
+import forecastRoutes from "../modules/forecast/forecast.routes.js";
+import inventoryDemandRoutes from "../modules/inventory-demand/inventoryDemand.routes.js";
 
 const router = Router();
 
@@ -350,6 +352,12 @@ router.use("/invoices", invoiceRoutes);
 
 // Bulk Import
 router.use("/import", importRoutes);
+
+// Forecast
+router.use("/forecast", forecastRoutes);
+
+// Inventory Demand Predictions
+router.use("/inventory-demand", inventoryDemandRoutes);
 
 // Payments
 router.get("/payments", AuthMiddleware, PaymentsController.index);

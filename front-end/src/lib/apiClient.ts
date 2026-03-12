@@ -12,7 +12,7 @@ const normalizeAuthToken = (rawToken: string | null | undefined) => {
   return token;
 };
 
-const apiClient = axios.create({
+export const apiClient = axios.create({
   baseURL: API_URL,
 });
 
@@ -133,13 +133,13 @@ export type Purchase = {
   paymentStatus: "PAID" | "PARTIALLY_PAID" | "UNPAID";
   paymentDate?: string | null;
   paymentMethod?:
-    | "CASH"
-    | "CARD"
-    | "BANK_TRANSFER"
-    | "UPI"
-    | "CHEQUE"
-    | "OTHER"
-    | null;
+  | "CASH"
+  | "CARD"
+  | "BANK_TRANSFER"
+  | "UPI"
+  | "CHEQUE"
+  | "OTHER"
+  | null;
   notes?: string | null;
   supplier?: Supplier | null;
   warehouse?: { id: number; name: string } | null;
@@ -162,13 +162,13 @@ export type PurchaseInput = {
   amount_paid?: number | null;
   payment_date?: string | Date | null;
   payment_method?:
-    | "CASH"
-    | "CARD"
-    | "BANK_TRANSFER"
-    | "UPI"
-    | "CHEQUE"
-    | "OTHER"
-    | null;
+  | "CASH"
+  | "CARD"
+  | "BANK_TRANSFER"
+  | "UPI"
+  | "CHEQUE"
+  | "OTHER"
+  | null;
   notes?: string | null;
   items: Array<{
     product_id: number;
@@ -191,13 +191,13 @@ export type Sale = {
   paymentStatus: "PAID" | "PARTIALLY_PAID" | "UNPAID";
   paymentDate?: string | null;
   paymentMethod?:
-    | "CASH"
-    | "CARD"
-    | "BANK_TRANSFER"
-    | "UPI"
-    | "CHEQUE"
-    | "OTHER"
-    | null;
+  | "CASH"
+  | "CARD"
+  | "BANK_TRANSFER"
+  | "UPI"
+  | "CHEQUE"
+  | "OTHER"
+  | null;
   notes?: string | null;
   customer?: Customer | null;
   items: Array<{
@@ -220,13 +220,13 @@ export type SaleInput = {
   amount_paid?: number | null;
   payment_date?: string | Date | null;
   payment_method?:
-    | "CASH"
-    | "CARD"
-    | "BANK_TRANSFER"
-    | "UPI"
-    | "CHEQUE"
-    | "OTHER"
-    | null;
+  | "CASH"
+  | "CARD"
+  | "BANK_TRANSFER"
+  | "UPI"
+  | "CHEQUE"
+  | "OTHER"
+  | null;
   notes?: string | null;
   items: Array<{
     product_id: number;
@@ -438,6 +438,35 @@ export type DashboardCustomers = {
     totalPurchaseAmount: number;
     numberOfOrders: number;
   }>;
+  clvAnalytics: {
+    highValueCustomers: Array<{
+      customerId: number | null;
+      customerName: string;
+      lifetimeValue: number;
+      predicatedFutureValue: number;
+      totalOrders: number;
+      segment: "HIGH_VALUE" | "AT_RISK" | "LOW_VALUE";
+    }>;
+    atRiskCustomers: Array<{
+      customerId: number | null;
+      customerName: string;
+      lifetimeValue: number;
+      predicatedFutureValue: number;
+      totalOrders: number;
+      segment: "HIGH_VALUE" | "AT_RISK" | "LOW_VALUE";
+    }>;
+    lowValueCustomers: Array<{
+      customerId: number | null;
+      customerName: string;
+      lifetimeValue: number;
+      predicatedFutureValue: number;
+      totalOrders: number;
+      segment: "HIGH_VALUE" | "AT_RISK" | "LOW_VALUE";
+    }>;
+    highValueCount: number;
+    atRiskCount: number;
+    lowValueCount: number;
+  };
 };
 
 export type DashboardSuppliers = {
@@ -692,12 +721,12 @@ export const updateSale = async (
     amount_paid?: number;
     payment_date?: string | Date | null;
     payment_method?:
-      | "CASH"
-      | "CARD"
-      | "BANK_TRANSFER"
-      | "UPI"
-      | "CHEQUE"
-      | "OTHER";
+    | "CASH"
+    | "CARD"
+    | "BANK_TRANSFER"
+    | "UPI"
+    | "CHEQUE"
+    | "OTHER";
   },
 ): Promise<void> => {
   await apiClient.put(`/sales/${id}`, payload);

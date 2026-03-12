@@ -7,7 +7,6 @@ type ExpensePoint = { month: Date; amount: number };
 
 type NotificationInput = {
   lowStock: string[];
-  overdueInvoices: string[];
   pendingSales: Array<{ customer: string; pendingAmount: number }>;
   supplierPayables: Array<{ supplier: string; pendingAmount: number }>;
 };
@@ -198,10 +197,9 @@ export const getDailyExpenses = async (params: {
 
 export const buildNotifications = ({
   lowStock,
-  overdueInvoices,
   pendingSales,
   supplierPayables,
-}: NotificationInput) => {
+}: Omit<NotificationInput, 'overdueInvoices'>) => {
   const nowIso = new Date().toISOString();
 
   const lowStockNotifications = lowStock.map((item, index) => ({
@@ -210,16 +208,6 @@ export const buildNotifications = ({
     title: "Low stock alert",
     message: item,
     redirectUrl: "/inventory",
-    createdAt: nowIso,
-    read: false,
-  }));
-
-  const overdueNotifications = overdueInvoices.map((invoice, index) => ({
-    id: `pending-invoice-${index}`,
-    type: "PENDING_INVOICE",
-    title: "Pending invoice payment",
-    message: `Invoice ${invoice} is overdue`,
-    redirectUrl: "/sales",
     createdAt: nowIso,
     read: false,
   }));
@@ -250,7 +238,6 @@ export const buildNotifications = ({
 
   return [
     ...lowStockNotifications,
-    ...overdueNotifications,
     ...salesPendingNotifications,
     ...supplierNotifications,
   ];

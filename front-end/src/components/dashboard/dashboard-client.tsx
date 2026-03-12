@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { fetchDashboardOverview } from "@/lib/apiClient";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import MetricCard from "@/components/dashboard/metric-card";
-import SalesChart from "@/components/dashboard/sales-chart";
+
 import ProfitForecast from "@/components/dashboard/profit-forecast";
-import InventoryOverview from "@/components/dashboard/inventory-overview";
+import SalesForecast from "@/components/dashboard/sales-forecast";
+import InventoryRiskAlerts from "@/components/dashboard/inventory-risk-alerts";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import CustomerInsights from "@/components/dashboard/customer-insights";
 import SupplierOverview from "@/components/dashboard/supplier-overview";
@@ -18,7 +19,6 @@ import ActivityTimeline from "@/components/dashboard/activity-timeline";
 import NotificationsPanel from "@/components/dashboard/notifications-panel";
 import {
   Banknote,
-  ClipboardList,
   CreditCard,
   Package,
   TrendingUp,
@@ -138,12 +138,6 @@ const DashboardClient = ({ name, image, token }: DashboardClientProps) => {
                 icon={<Banknote size={18} />}
               />
               <MetricCard
-                title="Expenses"
-                value={formatCurrency(metrics.expenses)}
-                change={metrics.changes.expenses}
-                icon={<ClipboardList size={18} />}
-              />
-              <MetricCard
                 title="Today's Profit"
                 value={formatCurrency(metrics.profits.today)}
                 change={metrics.changes.todayProfit}
@@ -171,16 +165,15 @@ const DashboardClient = ({ name, image, token }: DashboardClientProps) => {
           )}
         </section>
 
-        <SalesChart />
-
         <ProfitForecast />
 
-        <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <InventoryOverview />
-          <div className="grid gap-4">
-            <CustomerInsights />
-            <SupplierOverview />
-          </div>
+        <SalesForecast />
+
+        <InventoryRiskAlerts />
+
+        <section className="grid gap-4 sm:grid-cols-2">
+          <CustomerInsights />
+          <SupplierOverview />
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
