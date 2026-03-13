@@ -281,6 +281,8 @@ class AppError extends Error {
 ✅ Cash flow analysis: inflow/outflow modes (sales, payments, hybrid) - filtered by payment status
 ✅ Sales forecasting (filtered by payment status)
 ✅ Profit analytics: daily/monthly profit calculations (filtered by payment status)
+✅ Customer Churn Prediction: AI-driven risk classification (High/Medium/Low) based on purchase frequency, recency, and average order value.
+✅ Professional Data Visualization: Enhanced charts with linear gradients, custom tooltips, 0-axis baselines, and dynamic timelines.
 
 ---
 
@@ -460,7 +462,7 @@ User
 
 ### Phase 8: Automation & AI (Lower Priority)
 28. **Intelligent Invoice Processing** - OCR, auto-extraction, duplicate detection
-29. **AI-Powered Insights** - Payment prediction, churn analysis, price optimization
+✅ **AI-Powered Insights** - Churn analysis implemented; price optimization and payment prediction planned.
 30. **Workflow Automation** - Trigger-based actions, auto-send, auto-follow-ups, smart dunning
 
 ---
@@ -508,7 +510,23 @@ User
 
 ---
 
+---
+
 ## 11. RECENT UPDATES & BUG FIXES (March 2026)
+
+### Dashboard & AI Enhancements (March 2026 - Continued)
+✅ **Customer Churn Prediction** - Implemented a sophisticated churn model that analyzes purchase frequency, recency (days since last purchase), and weighted order value to classify customers into risk segments.
+✅ **Modernized Cash Flow Summary** - Upgraded visualization with:
+  - Linear gradients and smooth monotone curves for data series.
+  - Interactive floating tooltips with detailed per-series breakdown.
+  - Clean 0-axis baselines and polished coordinate systems.
+  - Focused "Month-to-Date" timeline (from 1st of current month).
+✅ **High-Density Dashboard Layout** - Eliminated empty space by:
+  - Implementing a smart sidebar column for secondary actions and stats.
+  - Restructuring the grid into logical groups (Financials, Inventory, CRM).
+  - Refactoring cards to automatically stretch and align heights across rows.
+✅ **Invoice Statistics Overhaul** - Integrated real-time counts for Total, Paid, Pending, and Overdue invoices into the dashboard header.
+✅ **Flexible Card System** - All dashboard components now accept custom classNames and support auto-stretching via flexbox for a perfectly balanced UI.
 
 ### Dashboard Fixes
 ✅ **Fixed Customer Insights & Supplier Overview Loading** - Removed undefined variable references (atRiskCustomers, atRiskSuppliers) that were causing API failures

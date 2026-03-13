@@ -439,33 +439,49 @@ export type DashboardCustomers = {
     numberOfOrders: number;
   }>;
   clvAnalytics: {
-    highValueCustomers: Array<{
+    premiumCustomers: Array<{
       customerId: number | null;
       customerName: string;
       lifetimeValue: number;
       predicatedFutureValue: number;
       totalOrders: number;
-      segment: "HIGH_VALUE" | "AT_RISK" | "LOW_VALUE";
+      compositeScore: number;
+      segment: "PREMIUM" | "REGULAR" | "NEW_LOW";
     }>;
-    atRiskCustomers: Array<{
+    regularCustomers: Array<{
       customerId: number | null;
       customerName: string;
       lifetimeValue: number;
       predicatedFutureValue: number;
       totalOrders: number;
-      segment: "HIGH_VALUE" | "AT_RISK" | "LOW_VALUE";
+      compositeScore: number;
+      segment: "PREMIUM" | "REGULAR" | "NEW_LOW";
     }>;
-    lowValueCustomers: Array<{
+    newLowCustomers: Array<{
       customerId: number | null;
       customerName: string;
       lifetimeValue: number;
       predicatedFutureValue: number;
       totalOrders: number;
-      segment: "HIGH_VALUE" | "AT_RISK" | "LOW_VALUE";
+      compositeScore: number;
+      segment: "PREMIUM" | "REGULAR" | "NEW_LOW";
     }>;
-    highValueCount: number;
-    atRiskCount: number;
-    lowValueCount: number;
+    premiumCount: number;
+    regularCount: number;
+    newLowCount: number;
+  };
+  churnAnalytics?: {
+    highRiskCount: number;
+    mediumRiskCount: number;
+    lowRiskCount: number;
+    topAtRiskCustomers: Array<{
+      customerId: number;
+      customerName: string;
+      lastPurchaseDate: string;
+      daysSinceLastPurchase: number;
+      churnProbability: number;
+      riskLevel: "HIGH_RISK" | "MEDIUM_RISK" | "LOW_RISK";
+    }>;
   };
 };
 
@@ -473,6 +489,25 @@ export type DashboardSuppliers = {
   total: number;
   recentPurchases: number;
   outstandingPayables: number;
+  supplierAnalytics?: {
+    highValueCount: number;
+    lowValueCount: number;
+    highValueSuppliers: Array<{
+      supplierName: string;
+      lifetimeValue: number;
+      predictedFutureValue: number;
+    }>;
+    lowValueSuppliers: Array<{
+      supplierName: string;
+      lifetimeValue: number;
+      predictedFutureValue: number;
+    }>;
+  };
+  topSuppliers?: Array<{
+    name: string;
+    totalPurchaseAmount: number;
+    numberOfOrders: number;
+  }>;
 };
 
 export type DashboardCashflow = {
@@ -497,6 +532,15 @@ export type DashboardProfit = {
     cost: number;
     expenses: number;
     profit: number;
+  }>;
+};
+
+export type DashboardProductSales = {
+  period: "lifetime" | "month" | "week";
+  products: Array<{
+    name: string;
+    quantity: number;
+    revenue: number;
   }>;
 };
 
@@ -874,6 +918,15 @@ export const fetchDashboardInventory =
     const response = await apiClient.get("/dashboard/inventory");
     return response.data.data as DashboardInventory;
   };
+
+export const fetchDashboardProductSales = async (
+  period: "lifetime" | "month" | "week" = "lifetime"
+): Promise<DashboardProductSales> => {
+  const response = await apiClient.get("/dashboard/product-sales", {
+    params: { period },
+  });
+  return response.data.data as DashboardProductSales;
+};
 
 export const fetchDashboardTransactions =
   async (): Promise<DashboardTransactions> => {

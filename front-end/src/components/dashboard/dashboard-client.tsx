@@ -14,6 +14,8 @@ import TransactionsTable from "@/components/dashboard/transactions-table";
 import CustomerInsights from "@/components/dashboard/customer-insights";
 import SupplierOverview from "@/components/dashboard/supplier-overview";
 import CashFlowChart from "@/components/dashboard/cashflow-chart";
+import ProductSalesChart from "@/components/dashboard/product-sales-chart";
+import SalesChart from "@/components/dashboard/sales-chart";
 import QuickActions from "@/components/dashboard/quick-actions";
 import ActivityTimeline from "@/components/dashboard/activity-timeline";
 import NotificationsPanel from "@/components/dashboard/notifications-panel";
@@ -165,23 +167,11 @@ const DashboardClient = ({ name, image, token }: DashboardClientProps) => {
           )}
         </section>
 
-        <ProfitForecast />
-
-        <SalesForecast />
-
-        <InventoryRiskAlerts />
-
-        <section className="grid gap-4 sm:grid-cols-2">
-          <CustomerInsights />
-          <SupplierOverview />
-        </section>
-
         <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <TransactionsTable />
-          <div className="grid gap-4">
-            <CashFlowChart />
+          <CashFlowChart className="h-full" />
+          <div className="flex flex-col gap-4">
             {invoiceStats && (
-              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 flex-1">
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
                   Invoice statistics
                 </p>
@@ -207,12 +197,30 @@ const DashboardClient = ({ name, image, token }: DashboardClientProps) => {
                 </div>
               </div>
             )}
+            <QuickActions className="flex-1" />
+            <NotificationsPanel className="flex-1" />
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <QuickActions />
-          <NotificationsPanel />
+        <section className="grid gap-4 lg:grid-cols-2">
+          <ProfitForecast className="h-full" />
+          <SalesForecast className="h-full" />
+        </section>
+
+        <SalesChart />
+
+        <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <ProductSalesChart className="h-full" />
+          <InventoryRiskAlerts className="h-full" />
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2">
+          <CustomerInsights className="h-full" />
+          <SupplierOverview className="h-full" />
+        </section>
+
+        <section className="grid gap-4">
+          <TransactionsTable />
         </section>
 
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -269,18 +277,7 @@ const DashboardClient = ({ name, image, token }: DashboardClientProps) => {
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <ActivityTimeline />
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
-              Empty states
-            </p>
-            <p className="mt-3 text-sm text-gray-500">
-              This panel intentionally reserves space for future widgets or
-              notes.
-            </p>
-          </div>
-        </section>
+        <ActivityTimeline />
       </div>
     </DashboardLayout>
   );

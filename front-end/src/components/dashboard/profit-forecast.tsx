@@ -33,7 +33,7 @@ const formatTooltipValue = (value: unknown) => {
   return formatCurrency(0);
 };
 
-const ProfitForecast = () => {
+const ProfitForecast = ({ className }: { className?: string }) => {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard", "forecast"],
     queryFn: fetchDashboardForecast,
@@ -53,11 +53,11 @@ const ProfitForecast = () => {
   const avgMargin = totalRevenue === 0 ? 0 : (totalProfit / totalRevenue) * 100;
 
   return (
-    <Card className="border-[#ecdccf] bg-white/90">
+    <Card className={`border-[#ecdccf] bg-white/90 flex flex-col ${className}`}>
       <CardHeader>
         <CardTitle className="text-lg">Profit analytics</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-6">
+      <CardContent className="flex flex-col flex-1 gap-6 min-h-0">
         {isLoading && (
           <div className="h-40 rounded-xl bg-[#fdf7f1] animate-pulse" />
         )}
@@ -97,11 +97,11 @@ const ProfitForecast = () => {
               ))}
             </div>
 
-            <div>
+            <div className="flex flex-col flex-1 min-h-[300px]">
               <p className="text-xs uppercase tracking-[0.2em] text-[#8a6d56]">
                 Monthly profit trend
               </p>
-              <div className="mt-3 h-48">
+              <div className="mt-3 flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyProfit}>
                     <CartesianGrid stroke="#f2e6dc" strokeDasharray="3 3" />
@@ -118,7 +118,7 @@ const ProfitForecast = () => {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <p className="text-xs text-[#8a6d56]">
+              <p className="text-xs text-[#8a6d56] mt-2">
                 Avg margin: {avgMargin.toFixed(1)}%
               </p>
             </div>

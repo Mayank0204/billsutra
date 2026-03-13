@@ -404,6 +404,7 @@ router.get(
   DashboardController.suppliers,
 );
 router.get("/dashboard/cashflow", AuthMiddleware, DashboardController.cashflow);
+router.get("/dashboard/product-sales", AuthMiddleware, DashboardController.productSales);
 router.get("/dashboard/forecast", AuthMiddleware, DashboardController.forecast);
 
 export default router;

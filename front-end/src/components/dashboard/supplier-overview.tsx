@@ -18,18 +18,18 @@ const getSegmentColor = (segment: string): string => {
   }
 };
 
-const SupplierOverview = () => {
+const SupplierOverview = ({ className }: { className?: string }) => {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard", "suppliers"],
     queryFn: fetchDashboardSuppliers,
   });
 
   return (
-    <Card className="border-[#ecdccf] bg-white/90">
+    <Card className={`border-[#ecdccf] bg-white/90 flex flex-col ${className}`}>
       <CardHeader>
         <CardTitle className="text-lg">Supplier Overview</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      <CardContent className="flex flex-col flex-1 gap-4 overflow-auto min-h-0">
         {isLoading && (
           <div className="h-24 rounded-xl bg-[#fdf7f1] animate-pulse" />
         )}

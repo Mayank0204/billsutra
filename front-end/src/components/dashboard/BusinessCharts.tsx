@@ -143,7 +143,7 @@ const BusinessCharts = () => {
                   x: { grid: { display: false } },
                   y: {
                     ticks: {
-                      callback: (value) => `₹${value}`,
+                      callback: (value: number | string) => `₹${value}`,
                     },
                   },
                 },

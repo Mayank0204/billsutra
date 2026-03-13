@@ -57,7 +57,7 @@ const getAlertLabel = (alert: RiskAlert): string => {
     return alert.alert_level;
 };
 
-const InventoryRiskAlerts = () => {
+const InventoryRiskAlerts = ({ className }: { className?: string }) => {
     const { data: inventoryData } = useQuery({
         queryKey: ["dashboard", "inventory"],
         queryFn: fetchDashboardInventory,
@@ -79,14 +79,14 @@ const InventoryRiskAlerts = () => {
     const alerts = data?.data.alerts || [];
 
     return (
-        <Card className="border-[#ecdccf] bg-white/90">
+        <Card className={`border-[#ecdccf] bg-white/90 flex flex-col ${className}`}>
             <CardHeader>
                 <CardTitle className="text-lg">Inventory Risk Alerts</CardTitle>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                     Products that need attention
                 </p>
             </CardHeader>
-            <CardContent className="grid gap-4">
+            <CardContent className="flex flex-col flex-1 gap-4 min-h-0">
                 {inventoryData && (
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         {[
@@ -139,7 +139,7 @@ const InventoryRiskAlerts = () => {
                 )}
 
                 {!isLoading && !isError && alerts.length > 0 && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 flex-1 overflow-auto pr-1">
                         {alerts.map((alert) => (
                             <div
                                 key={alert.product_id}

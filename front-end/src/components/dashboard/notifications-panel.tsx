@@ -7,7 +7,7 @@ import { fetchDashboardOverview } from "@/lib/apiClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-const NotificationsPanel = () => {
+const NotificationsPanel = ({ className }: { className?: string }) => {
   const router = useRouter();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard", "overview"],
@@ -23,7 +23,7 @@ const NotificationsPanel = () => {
   };
 
   return (
-    <Card className="border-[#ecdccf] bg-[#fff7ef]">
+    <Card className={`border-[#ecdccf] bg-[#fff7ef] ${className}`}>
       <CardHeader>
         <CardTitle className="text-lg">Notifications & alerts</CardTitle>
       </CardHeader>

@@ -27,7 +27,15 @@ const fallbackSales: DashboardSales = {
   categories: [],
 };
 
-const chartColors = ["#f97316", "#0f766e", "#f59e0b", "#1e293b", "#fb7185"];
+const chartColors = [
+  "#f97316",
+  "#0f766e",
+  "#f59e0b",
+  "#1e293b",
+  "#fb7185",
+  "#8b5cf6",
+  "#ec4899",
+];
 
 const formatCurrency = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
@@ -154,7 +162,7 @@ const SalesChart = () => {
 
         <Card className="border-[#ecdccf] bg-white/90">
           <CardHeader>
-            <CardTitle className="text-base">Category mix</CardTitle>
+            <CardTitle className="text-base">Category mix (Top 7)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-44">

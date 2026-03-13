@@ -1,3 +1,4 @@
+import React from "react";
 import type {
   InvoicePreviewData,
   InvoiceTheme,
@@ -17,7 +18,7 @@ import Footer from "./sections/Footer";
 
 const SECTION_MAP: Record<
   SectionKey,
-  (props: InvoiceSectionProps) => JSX.Element
+  (props: InvoiceSectionProps) => React.JSX.Element
 > = {
   header: Header,
   company_details: CompanyDetails,

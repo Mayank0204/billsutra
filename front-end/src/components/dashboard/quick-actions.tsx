@@ -11,9 +11,9 @@ const actions = [
   { label: "Add Purchase", href: "/purchases" },
 ];
 
-const QuickActions = () => {
+const QuickActions = ({ className }: { className?: string }) => {
   return (
-    <Card className="border-[#ecdccf] bg-white/90">
+    <Card className={`border-[#ecdccf] bg-white/90 ${className}`}>
       <CardHeader>
         <CardTitle className="text-lg">Quick actions</CardTitle>
       </CardHeader>

@@ -106,6 +106,9 @@ class DashboardController {
       monthlyExpenses,
       previousMonthlyExpenses,
       totalExpenses,
+      totalInvoices,
+      paidInvoices,
+      pendingInvoices,
     ] = await Promise.all([
       prisma.sale.aggregate({
         where: {
@@ -282,6 +285,14 @@ class DashboardController {
       getExpenseTotals({ userId, from: monthStart }),
       getExpenseTotals({ userId, from: previousMonthStart, to: monthStart }),
       getExpenseTotals({ userId }),
+      prisma.sale.count({ where: { user_id: userId } }),
+      prisma.sale.count({ where: { user_id: userId, paymentStatus: "PAID" } }),
+      prisma.sale.count({
+        where: {
+          user_id: userId,
+          paymentStatus: { in: ["PARTIALLY_PAID", "UNPAID"] },
+        },
+      }),
     ]);
 
     const totalRevenue = toNumber(saleTotals._sum.total);
@@ -435,6 +446,12 @@ class DashboardController {
             pendingAmount: toNumber(row.pendingAmount),
           })),
         }),
+        invoiceStats: {
+          total: totalInvoices,
+          paid: paidInvoices,
+          pending: pendingInvoices,
+          overdue: 0, // Placeholder
+        },
         activity,
       },
     });
@@ -538,7 +555,7 @@ class DashboardController {
     const categories = Array.from(categoryMap.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
+      .slice(0, 7);
 
     return sendResponse(res, 200, {
       data: {
@@ -664,7 +681,8 @@ class DashboardController {
     const monthStart = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
     );
-    const sixtyDaysAgo = addDays(now, -60);
+    const start30DaysAgo = startOfDayUtc(addDays(now, -30));
+    const start60DaysAgo = startOfDayUtc(addDays(now, -60));
 
     const [
       totalRegisteredCustomers,
@@ -677,6 +695,8 @@ class DashboardController {
       monthlyRegisteredGroups,
       monthlyWalkIns,
       allCustomersData,
+      last30DaysSales,
+      prev30DaysSales,
     ] = await Promise.all([
       prisma.customer.count({ where: { user_id: userId } }),
       prisma.sale.aggregate({
@@ -755,6 +775,28 @@ class DashboardController {
         _min: { sale_date: true },
         _max: { sale_date: true },
       }),
+      // Churn Data: Last 30 days sales count
+      prisma.sale.groupBy({
+        by: ["customer_id"],
+        where: {
+          user_id: userId,
+          customer_id: { not: null },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID"] },
+          sale_date: { gte: start30DaysAgo },
+        },
+        _count: { _all: true },
+      }),
+      // Churn Data: Previous 30 days to 60 days sales count
+      prisma.sale.groupBy({
+        by: ["customer_id"],
+        where: {
+          user_id: userId,
+          customer_id: { not: null },
+          paymentStatus: { in: ["PAID", "PARTIALLY_PAID"] },
+          sale_date: { gte: start60DaysAgo, lt: start30DaysAgo },
+        },
+        _count: { _all: true },
+      }),
     ]);
 
     const customers = await prisma.customer.findMany({
@@ -827,14 +869,58 @@ class DashboardController {
       })
       .sort((a, b) => b.lifeTimeValue - a.lifeTimeValue);
 
-    // Determine segments using proper index-based approach
-    // HIGH_VALUE: top 35% by lifetime value to capture similar-value customers
-    const clvWithSegments = clvMetrics.map((metric, index) => {
-      let segment: "HIGH_VALUE" | "LOW_VALUE" = "LOW_VALUE";
+    // Calculate composite scores and segments for CLV
+    // 1. Find max values to safely normalize
+    const maxLtv = Math.max(1, ...clvMetrics.map((m) => m.lifeTimeValue));
+    const maxFreq = Math.max(0.001, ...clvMetrics.map((m) => m.purchaseFrequency));
+    const maxAov = Math.max(1, ...clvMetrics.map((m) => m.avgOrderValue));
 
-      const highValueCount = Math.max(1, Math.ceil(clvMetrics.length * 0.35));
-      if (index < highValueCount) {
-        segment = "HIGH_VALUE";
+    const clvWithScores = clvMetrics.map((m) => {
+      const daysSinceLastPurchase = Math.max(
+        1,
+        (now.getTime() - new Date(m.lastPurchaseDate).getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
+
+      // Normalize metrics 0-1
+      const normLtv = m.lifeTimeValue / maxLtv;
+      const normFreq = m.purchaseFrequency / maxFreq;
+      const normAov = m.avgOrderValue / maxAov;
+      const normRecency = Math.max(0, 1 - daysSinceLastPurchase / 365); // simple inverted recency up to 1 year
+
+      // Weights: LTV (40%), Frequency (25%), AOV (20%), Recency (15%)
+      const compositeScore =
+        normLtv * 0.4 + normFreq * 0.25 + normAov * 0.2 + normRecency * 0.15;
+
+      return { ...m, compositeScore };
+    });
+
+    // Determine segments based on percentiles to ensure identical scores get same segment
+    // Sort descending by compositeScore
+    const sortedScores = [...clvWithScores].sort(
+      (a, b) => b.compositeScore - a.compositeScore,
+    );
+    const premiumThresholdIndex = Math.floor(sortedScores.length * 0.3);
+    const regularThresholdIndex = Math.floor(sortedScores.length * 0.7);
+
+    const premiumScoreThreshold =
+      sortedScores[Math.max(0, premiumThresholdIndex - 1)]?.compositeScore ?? 0;
+    const regularScoreThreshold =
+      sortedScores[Math.max(0, regularThresholdIndex - 1)]?.compositeScore ?? 0;
+
+    const clvWithSegments = clvWithScores.map((metric) => {
+      let segment: "PREMIUM" | "REGULAR" | "NEW_LOW" = "NEW_LOW";
+
+      if (
+        metric.compositeScore >= premiumScoreThreshold &&
+        metric.compositeScore > 0
+      ) {
+        segment = "PREMIUM";
+      } else if (
+        metric.compositeScore >= regularScoreThreshold &&
+        metric.compositeScore > 0
+      ) {
+        segment = "REGULAR";
       }
 
       return { ...metric, segment };
@@ -852,11 +938,11 @@ class DashboardController {
       clvCustomers.map((c) => [c.id, c.name]),
     );
 
-    const highValueCustomers = clvWithSegments
+    const premiumCustomers = clvWithSegments
       .filter(
         (m): m is typeof m & { customerId: number } => m.customerId !== null,
       )
-      .filter((m) => m.segment === "HIGH_VALUE")
+      .filter((m) => m.segment === "PREMIUM")
       .slice(0, 5)
       .map((m) => ({
         customerId: m.customerId,
@@ -864,14 +950,15 @@ class DashboardController {
         lifetimeValue: m.lifeTimeValue,
         predicatedFutureValue: m.predicatedFutureValue,
         totalOrders: m.totalOrders,
+        compositeScore: m.compositeScore,
         segment: m.segment,
       }));
 
-    const lowValueCustomers = clvWithSegments
+    const regularCustomers = clvWithSegments
       .filter(
         (m): m is typeof m & { customerId: number } => m.customerId !== null,
       )
-      .filter((m) => m.segment === "LOW_VALUE")
+      .filter((m) => m.segment === "REGULAR")
       .slice(0, 5)
       .map((m) => ({
         customerId: m.customerId,
@@ -879,6 +966,23 @@ class DashboardController {
         lifetimeValue: m.lifeTimeValue,
         predicatedFutureValue: m.predicatedFutureValue,
         totalOrders: m.totalOrders,
+        compositeScore: m.compositeScore,
+        segment: m.segment,
+      }));
+
+    const newLowCustomers = clvWithSegments
+      .filter(
+        (m): m is typeof m & { customerId: number } => m.customerId !== null,
+      )
+      .filter((m) => m.segment === "NEW_LOW")
+      .slice(0, 5)
+      .map((m) => ({
+        customerId: m.customerId,
+        customerName: clvCustomerMap.get(m.customerId) ?? "Customer",
+        lifetimeValue: m.lifeTimeValue,
+        predicatedFutureValue: m.predicatedFutureValue,
+        totalOrders: m.totalOrders,
+        compositeScore: m.compositeScore,
         segment: m.segment,
       }));
 
@@ -890,6 +994,53 @@ class DashboardController {
       walkInCustomers,
       totalCustomers: registeredCustomers + walkInCustomers,
     });
+
+    // Churn prediction calculation
+    const churnAnalyticsValues = clvWithSegments
+      .filter((m): m is typeof m & { customerId: number } => m.customerId !== null)
+      .map((m) => {
+        // Find last 30 and prev 30 purchases
+        const last30 = last30DaysSales.find(s => s.customer_id === m.customerId)?._count._all || 0;
+        const prev30 = prev30DaysSales.find(s => s.customer_id === m.customerId)?._count._all || 0;
+        
+        const daysSinceLastPurchase = Math.max(1, Math.floor((now.getTime() - new Date(m.lastPurchaseDate).getTime()) / (1000 * 60 * 60 * 24)));
+        
+        let orderTrendDrop = 0;
+        if (prev30 > 0) {
+            orderTrendDrop = Math.max(0, (prev30 - last30) / prev30);
+        } else if (last30 === 0 && m.totalOrders > 0 && daysSinceLastPurchase > 30) {
+            orderTrendDrop = 1;
+        }
+
+        const normDaysSinceLastPurchase = Math.min(1, daysSinceLastPurchase / 365);
+        const normPurchaseFreq = Math.min(1, m.purchaseFrequency);
+        
+        let churnProbability = (normDaysSinceLastPurchase * 0.4) + ((1 - normPurchaseFreq) * 0.3) + (orderTrendDrop * 0.3);
+        churnProbability = Math.max(0, Math.min(1, churnProbability));
+        
+        let riskLevel: "HIGH_RISK" | "MEDIUM_RISK" | "LOW_RISK" = "LOW_RISK";
+        if (churnProbability >= 0.7) {
+            riskLevel = "HIGH_RISK";
+        } else if (churnProbability >= 0.4) {
+            riskLevel = "MEDIUM_RISK";
+        }
+        
+        return {
+            customerId: m.customerId,
+            customerName: clvCustomerMap.get(m.customerId) ?? "Customer",
+            lastPurchaseDate: m.lastPurchaseDate,
+            daysSinceLastPurchase,
+            churnProbability,
+            riskLevel,
+        };
+      });
+
+    const highRiskCount = churnAnalyticsValues.filter(c => c.riskLevel === "HIGH_RISK").length;
+    const mediumRiskCount = churnAnalyticsValues.filter(c => c.riskLevel === "MEDIUM_RISK").length;
+    const lowRiskCount = churnAnalyticsValues.filter(c => c.riskLevel === "LOW_RISK").length;
+    const topAtRiskCustomers = [...churnAnalyticsValues]
+        .sort((a, b) => b.churnProbability - a.churnProbability)
+        .slice(0, 5);
 
     return sendResponse(res, 200, {
       data: {
@@ -908,10 +1059,18 @@ class DashboardController {
         },
         topCustomers,
         clvAnalytics: {
-          highValueCustomers,
-          lowValueCustomers,
-          highValueCount: highValueCustomers.length,
-          lowValueCount: lowValueCustomers.length,
+          premiumCustomers,
+          regularCustomers,
+          newLowCustomers,
+          premiumCount: clvWithSegments.filter((m) => m.segment === "PREMIUM").length,
+          regularCount: clvWithSegments.filter((m) => m.segment === "REGULAR").length,
+          newLowCount: clvWithSegments.filter((m) => m.segment === "NEW_LOW").length,
+        },
+        churnAnalytics: {
+          highRiskCount,
+          mediumRiskCount,
+          lowRiskCount,
+          topAtRiskCustomers,
         },
       },
     });
@@ -1110,7 +1269,8 @@ class DashboardController {
     }
 
     const now = new Date();
-    const start30 = startOfDayUtc(addDays(now, -29));
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const daysInMonth = now.getUTCDate();
     const inflowMode = resolveCashInflowMode(
       req.query.inflowMode ?? process.env.DASHBOARD_CASHFLOW_INFLOW_MODE,
     );
@@ -1123,25 +1283,25 @@ class DashboardController {
             paidAmount: { gt: 0 },
             paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
             OR: [
-              { paymentDate: { gte: start30 } },
-              { paymentDate: null, sale_date: { gte: start30 } },
+              { paymentDate: { gte: startOfMonth } },
+              { paymentDate: null, sale_date: { gte: startOfMonth } },
             ],
           },
           select: { sale_date: true, paymentDate: true, paidAmount: true },
         }),
         prisma.payment.findMany({
-          where: { user_id: userId, paid_at: { gte: start30 } },
+          where: { user_id: userId, paid_at: { gte: startOfMonth } },
           select: { paid_at: true, amount: true },
         }),
         prisma.purchase.findMany({
           where: {
             user_id: userId,
-            purchase_date: { gte: start30 },
+            purchase_date: { gte: startOfMonth },
             paymentStatus: { in: ["PAID", "PARTIALLY_PAID", "UNPAID"] },
           },
           select: { purchase_date: true, paymentDate: true, paidAmount: true },
         }),
-        getDailyExpenses({ userId, from: start30 }),
+        getDailyExpenses({ userId, from: startOfMonth }),
       ]);
 
     const inflowMap = new Map<string, number>();
@@ -1180,7 +1340,7 @@ class DashboardController {
       outflowMap.set(key, (outflowMap.get(key) ?? 0) + expense.amount);
     });
 
-    const series = buildDateSeries(start30, 30).map((key) => ({
+    const series = buildDateSeries(startOfMonth, daysInMonth).map((key) => ({
       date: key,
       inflow: inflowMap.get(key) ?? 0,
       outflow: outflowMap.get(key) ?? 0,
@@ -1196,6 +1356,64 @@ class DashboardController {
         outflow,
         netCashFlow: inflow - outflow,
         series,
+      },
+    });
+  }
+
+  static async productSales(req: Request, res: Response) {
+    const userId = req.user?.id;
+    if (!userId) {
+      return sendResponse(res, 401, { message: "Unauthorized" });
+    }
+
+    const period = typeof req.query.period === "string" ? req.query.period : "lifetime";
+
+    const now = new Date();
+    let startDate: Date | undefined;
+
+    if (period === "week") {
+      startDate = startOfDayUtc(addDays(now, -6));
+    } else if (period === "month") {
+      startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    }
+
+    const whereClause: any = { sale: { user_id: userId } };
+    if (startDate) {
+      whereClause.sale.sale_date = { gte: startDate };
+    }
+
+    const saleItems = await prisma.saleItem.findMany({
+      where: whereClause,
+      select: {
+        name: true,
+        quantity: true,
+        line_total: true,
+      },
+    });
+
+    const productMap = new Map<string, { quantity: number; revenue: number }>();
+
+    for (const item of saleItems) {
+      const existing = productMap.get(item.name) ?? { quantity: 0, revenue: 0 };
+      productMap.set(item.name, {
+        quantity: existing.quantity + item.quantity,
+        revenue: existing.revenue + toNumber(item.line_total),
+      });
+    }
+
+    const products = Array.from(productMap.entries())
+      .map(([name, stats]) => ({
+        name,
+        quantity: stats.quantity,
+        revenue: stats.revenue,
+      }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 15);
+
+    return sendResponse(res, 200, {
+      data: {
+        period,
+        products,
       },
     });
   }
